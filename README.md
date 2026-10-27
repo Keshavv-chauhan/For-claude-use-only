@@ -15,7 +15,21 @@ A small web app that plays videos from a link. Paste a link, press **Play**.
 
 Also: playback speed, picture-in-picture, recent links, and `/?url=<link>` to open a link directly.
 
-## Run it
+## Live site (GitHub Pages)
+
+**https://keshavv-chauhan.github.io/For-claude-use-only/**
+
+The page is published from `public/` to the `gh-pages` branch by `.github/workflows/pages.yml` on every push.
+
+GitHub Pages only hosts static files, so on its own the live site plays direct files, HLS/DASH streams, YouTube, Vimeo, Drive and so on. **Terabox links and the proxy need the server** (`server.js`) running somewhere:
+
+1. Host the server for free on Render: Render dashboard → **New → Blueprint** → pick this repo (it reads `render.yaml`). Set `TERABOX_COOKIE` when asked.
+2. Open the live site → **Server settings** → paste your server's URL (e.g. `https://linkplay.onrender.com`) → **Save**.
+   To make it the default for everyone, set `window.LINKPLAY_SERVER` in `public/config.js` instead.
+
+Render's free plan sleeps when idle, so the first Terabox link after a while can take ~30 seconds.
+
+## Run it locally
 
 Needs Node.js 18 or newer. No `npm install` needed (no dependencies).
 

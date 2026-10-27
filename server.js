@@ -22,6 +22,12 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const TERABOX_HOST_RE =
   /(^|\.)(terabox|1024terabox|1024tera|teraboxapp|terabox\.app|teraboxlink|terasharelink|terafileshare|teraboxshare|4funbox|mirrobox|nephobox|freeterabox|momerybox|tibibox|gibibox|terabox\.fun)\b/i;
 
+// Lets a page hosted elsewhere (e.g. GitHub Pages) use this server.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+};
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -51,6 +57,7 @@ function sendJson(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...CORS,
   });
   res.end(body);
 }
@@ -241,14 +248,14 @@ async function handleProxy(req, res, target) {
   if (isPlaylist && up.ok) {
     const text = await up.text();
     if (text.trimStart().startsWith('#EXTM3U')) {
-      res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store' });
+      res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store', ...CORS });
       return res.end(rewritePlaylist(text, up.finalUrl));
     }
     // Terabox sends a JSON error instead of a playlist when something is wrong.
     return sendJson(res, 502, { error: 'Stream not available', detail: text.slice(0, 300) });
   }
 
-  const out = { 'Access-Control-Allow-Origin': '*' };
+  const out = { ...CORS };
   for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag']) {
     const v = up.headers.get(h);
     if (v) out[h] = v;
@@ -284,6 +291,15 @@ function serveStatic(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
+  if (req.method === 'OPTIONS' && u.pathname.startsWith('/api/')) {
+    res.writeHead(204, {
+      ...CORS,
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range',
+      'Access-Control-Max-Age': '86400',
+    });
+    return res.end();
+  }
   try {
     if (u.pathname === '/api/terabox') {
       const link = u.searchParams.get('url');
@@ -297,7 +313,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
     return serveStatic(req, res, u.pathname);
   } catch (e) {
-    if (!res.headersSent) sendJson(res, 400, { error: e.message || 'Something went wrong' });
+    const msg = e.message === 'fetch failed' ? 'Could not reach Terabox from the server. Try again later.' : e.message;
+    if (!res.headersSent) sendJson(res, 400, { error: msg || 'Something went wrong' });
     else res.destroy();
   }
 });

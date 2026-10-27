@@ -22,7 +22,7 @@
       <button type="submit" id="play" class="primary">Play</button>
     </form>
 
-    <div class="opts">
+    <div class="opts" id="proxyRow" hidden>
       <label><input type="checkbox" id="useProxy" /> Play through server proxy</label>
       <span class="hint">Turn on if a link won't play (fixes most blocked or "403" links).</span>
     </div>
@@ -57,8 +57,19 @@
       <ul id="history" class="history"></ul>
     </section>
 
+    <details id="settings" class="panel settings">
+      <summary>Server settings</summary>
+      <p class="hint">Terabox links and the proxy need the LinkPlay server (<code>server.js</code>) running somewhere. Paste its URL here, or leave it empty to use this site's own server.</p>
+      <div class="bar">
+        <input id="server" type="url" inputmode="url" placeholder="https://your-linkplay-server.onrender.com" />
+        <button type="button" id="saveServer" class="ghost">Save</button>
+      </div>
+      <p id="serverState" class="hint" role="status"></p>
+    </details>
+
     <footer class="foot">Only play content you have the right to watch.</footer>
   </main>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

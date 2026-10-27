@@ -83,6 +83,11 @@ button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); out
 .history .link { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .history .kind { flex: none; text-transform: uppercase; letter-spacing: .04em; }
 
+.settings summary { cursor: pointer; font-weight: 600; }
+.settings .bar { margin-top: 8px; }
+.settings p { margin: 8px 0 0; }
+.hint.good { color: var(--ok); }
+code { background: #0b0d11; padding: 1px 5px; border-radius: 5px; font-size: 13px; }
 .foot { margin-top: 30px; color: var(--muted); font-size: 12px; text-align: center; }
 
 @media (max-width: 560px) {

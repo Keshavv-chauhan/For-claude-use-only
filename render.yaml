@@ -1,0 +1,15 @@
+# One-click deploy of the LinkPlay server on Render (free plan).
+# Render dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: linkplay
+    runtime: node
+    plan: free
+    buildCommand: "true"
+    startCommand: node server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: TERABOX_COOKIE
+        sync: false
+      - key: TERABOX_DOMAIN
+        value: www.terabox.com

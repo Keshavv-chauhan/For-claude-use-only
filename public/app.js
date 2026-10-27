@@ -9,7 +9,7 @@ const els = {
   form: $('form'), url: $('url'), play: $('play'), paste: $('paste'), useProxy: $('useProxy'),
   status: $('status'), stage: $('stage'), player: $('player'), controls: $('controls'),
   nowTitle: $('nowTitle'), speed: $('speed'), pip: $('pip'), download: $('download'),
-  filesBox: $('filesBox'), filesTitle: $('filesTitle'), files: $('files'),
+  filesBox: $('filesBox'), proxyRow: $('proxyRow'), settings: $('settings'), server: $('server'), saveServer: $('saveServer'), serverState: $('serverState'), filesTitle: $('filesTitle'), files: $('files'),
   historyBox: $('historyBox'), history: $('history'), clearHistory: $('clearHistory'),
 };
 
@@ -23,8 +23,40 @@ function setStatus(msg, kind = '') {
   els.status.className = 'status' + (kind ? ' ' + kind : '');
 }
 
+// Backend server (for Terabox + proxy). Empty base = same origin as this page.
+// On static hosting (GitHub Pages) there is no backend unless a Server URL is set.
+const backend = { base: '', ok: false };
+
+function apiUrl(path) {
+  return backend.base + path;
+}
+
 function proxied(u) {
-  return '/api/proxy?url=' + encodeURIComponent(u);
+  return apiUrl('/api/proxy?url=' + encodeURIComponent(u));
+}
+
+function cleanBase(v) {
+  return (v || '').trim().replace(/\/+$/, '');
+}
+
+async function checkBackend() {
+  const saved = storage(() => localStorage.getItem('linkplay.server'), null);
+  backend.base = cleanBase(saved != null ? saved : window.LINKPLAY_SERVER);
+  els.server.value = backend.base;
+  try {
+    const r = await fetch(apiUrl('/api/status'), { cache: 'no-store' });
+    const j = await r.json();
+    backend.ok = r.ok && j.ok === true;
+  } catch {
+    backend.ok = false;
+  }
+  els.proxyRow.hidden = !backend.ok;
+  els.serverState.textContent = backend.ok
+    ? 'Connected. Terabox links and the proxy are available.'
+    : backend.base
+      ? "Can't reach that server. Terabox links won't work."
+      : 'No server set. Direct links, streams and YouTube etc. work. Terabox needs a server.';
+  els.serverState.className = 'hint ' + (backend.ok ? 'good' : '');
 }
 
 function fmtSize(n) {
@@ -170,7 +202,7 @@ async function playSources(sources, title, openUrl) {
     } catch (e) {
       if (cancelled) return;
       if (i === sources.length - 1) {
-        setStatus(`Couldn't play this video. ${e.message || ''} Try turning on "Play through server proxy", or open the file directly.`, 'err');
+        setStatus(`Couldn't play this video. ${e.message || ''} ${backend.ok ? 'Try turning on "Play through server proxy", or open the file directly.' : 'The site may block playback from other websites. Setting up the LinkPlay server (see Server settings) usually fixes this.'}`, 'err');
       }
     }
   }
@@ -238,10 +270,14 @@ function mediaError(v) {
 // ---------- terabox ----------
 
 async function playTerabox(link) {
+  if (!backend.ok) {
+    els.settings.open = true;
+    return setStatus('Terabox links need the LinkPlay server. Add your server URL under "Server settings" below (see README for free hosting).', 'err');
+  }
   setStatus('Fetching Terabox share…');
   els.play.disabled = true;
   try {
-    const r = await fetch('/api/terabox?url=' + encodeURIComponent(link));
+    const r = await fetch(apiUrl('/api/terabox?url=' + encodeURIComponent(link)));
     const data = await r.json().catch(() => ({ error: 'Server error' }));
     if (!r.ok) throw new Error(data.error || 'Could not open this Terabox link');
     const videos = data.files.filter((f) => f.isVideo);
@@ -318,7 +354,7 @@ function play(raw) {
   addHistory(raw.trim(), d.kind === 'embed' ? d.label : d.kind);
   els.filesBox.hidden = d.kind !== 'terabox' ? true : els.filesBox.hidden;
 
-  const viaProxy = els.useProxy.checked;
+  const viaProxy = backend.ok && els.useProxy.checked;
   const name = decodeURIComponent(new URL(d.url).pathname.split('/').pop() || '') || new URL(d.url).hostname;
 
   switch (d.kind) {
@@ -330,12 +366,12 @@ function play(raw) {
     case 'dash': {
       const direct = { type: d.kind, url: d.url };
       const prox = { type: d.kind, url: proxied(d.url) };
-      return playSources(viaProxy ? [prox] : [direct, prox], name, null);
+      return playSources(viaProxy ? [prox] : backend.ok ? [direct, prox] : [direct], name, null);
     }
     default: {
       const direct = { type: 'file', url: d.url };
       const prox = { type: 'file', url: proxied(d.url) };
-      return playSources(viaProxy ? [prox] : [direct, prox], name, d.url);
+      return playSources(viaProxy ? [prox] : backend.ok ? [direct, prox] : [direct], name, d.url);
     }
   }
 }
@@ -403,8 +439,18 @@ els.clearHistory.addEventListener('click', () => {
 els.useProxy.checked = storage(() => localStorage.getItem('linkplay.proxy') === '1', false);
 els.useProxy.addEventListener('change', () => storage(() => localStorage.setItem('linkplay.proxy', els.useProxy.checked ? '1' : '0')));
 
+els.saveServer.addEventListener('click', async () => {
+  const v = cleanBase(els.server.value);
+  if (v && !/^https?:\/\//.test(v)) return (els.serverState.textContent = 'Server URL must start with http:// or https://');
+  storage(() => localStorage.setItem('linkplay.server', v));
+  els.serverState.textContent = 'Checking…';
+  await checkBackend();
+});
+
 renderHistory();
 
-// Support share links like /?url=https://...
-const initial = new URLSearchParams(location.search).get('url');
-if (initial) { els.url.value = initial; play(initial); }
+// Support share links like ?url=https://...
+checkBackend().then(() => {
+  const initial = new URLSearchParams(location.search).get('url');
+  if (initial) { els.url.value = initial; play(initial); }
+});
